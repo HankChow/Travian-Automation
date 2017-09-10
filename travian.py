@@ -57,7 +57,7 @@ class Travian(object):
         self.driver.quit()
 
 if __name__ == '__main__':
-    t = Travian('hank47', 'zc_7r4v14n', 'com 7')
+    t = Travian('', '', '')
     t.init_webdriver()
     t.login()
     print(t.get_current_village_production())
