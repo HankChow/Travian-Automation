@@ -2,7 +2,7 @@
 # coding: utf-8
 
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
+
 
 class Travian(object):
 
@@ -10,9 +10,7 @@ class Travian(object):
         self.username = username
         self.password = passwd
         self.server = server
-
-    def init_webdriver(self):
-        #self.driver = webdriver.Firefox()
+        # self.driver = webdriver.Firefox()
         self.driver = webdriver.PhantomJS()
 
     def login(self):
@@ -20,7 +18,8 @@ class Travian(object):
         self.driver.implicitly_wait(20)
         # 首页的 LOGIN 按钮在 phantomjs 引擎下会谜之不可见
         # 因此无法用常规的 click() 来模拟点击，只能用原生 js 定位这个不可见元素后点击
-        self.driver.execute_script('document.evaluate(\'//a[@href="#login"]\', document, null, XPathResult.ANY_TYPE, null).iterateNext().click();')
+        self.driver.execute_script(
+            'document.evaluate(\'//a[@href="#login"]\',document,null,XPathResult.ANY_TYPE,null).iterateNext().click();')
         # 服务器列表
         world_list = self.driver.find_element_by_class_name('worldGroup').find_elements_by_xpath('div')
         for item in world_list:
@@ -109,9 +108,9 @@ class Travian(object):
     def close_browser(self):
         self.driver.quit()
 
+
 if __name__ == '__main__':
     t = Travian('', '', '')
-    t.init_webdriver()
     t.login()
     print(t.get_current_village_production())
     print(t.get_current_village_troops())
