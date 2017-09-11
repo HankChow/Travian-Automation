@@ -12,8 +12,8 @@ class Travian(object):
         self.username = username
         self.password = passwd
         self.server = server
-        # self.driver = webdriver.Firefox()
-        self.driver = webdriver.PhantomJS()
+        self.driver = webdriver.Firefox()
+        # self.driver = webdriver.PhantomJS()
 
     def login(self):
         self.driver.get('https://www.travian.com/international')
@@ -41,24 +41,26 @@ class Travian(object):
         print('Successfully logged in.')
 
     # 装饰器
-    def switch_to_dorf1(self, func):
-        def wrapper(*args, **kwargs):
-            if 'dorf1.php' not in self.driver.current_url:
-                ul_navigation = self.driver.find_element_by_css_selector('ul#navigation')
-                ul_navigation.find_element_by_css_selector('li#n1').find_element_by_tag_name('a').click()
-                self.driver.implicitly_wait(5)
-            return func(*args, **kwargs)
-        return wrapper()
+    def switch_to_dorf1(self):
+        if 'dorf1.php' not in self.driver.current_url:
+            ul_navigation = self.driver.find_element_by_css_selector('ul#navigation')
+            ul_navigation.find_element_by_css_selector('li#n1').find_element_by_tag_name('a').click()
+            self.driver.implicitly_wait(5)
 
     # 装饰器
-    def switch_to_dorf2(self, func):
-        def wrapper(*args, **kwargs):
-            if 'dorf2.php' not in self.driver.current_url:
-                ul_navigation = self.driver.find_element_by_css_selector('ul#navigation')
-                ul_navigation.find_element_by_css_selector('li#n2').find_element_by_tag_name('a').click()
-                self.driver.implicitly_wait(5)
-            return func(*args, **kwargs)
-        return wrapper()
+    def switch_to_dorf2(self):
+        if 'dorf2.php' not in self.driver.current_url:
+            ul_navigation = self.driver.find_element_by_css_selector('ul#navigation')
+            ul_navigation.find_element_by_css_selector('li#n2').find_element_by_tag_name('a').click()
+            self.driver.implicitly_wait(5)
+
+    # 装饰器
+    def switch_to_hero(self):
+        if 'dorf1.php' not in self.driver.current_url or 'dorf2.php' not in self.driver.current_url:
+            self.switch_to_dorf1()
+        btn_hero = self.driver.find_element_by_css_selector('button.heroImageButton')
+        btn_hero.click()
+        self.driver.implicitly_wait(5)
 
     def get_villages(self):
         village_box = self.driver.find_element_by_css_selector('div#sidebarBoxVillagelist')
@@ -152,6 +154,22 @@ class Travian(object):
             }, upgrades))
             return cvu
 
+    def get_available_hero_adventures(self):
+        self.switch_to_hero()
+        tab_adventure = self.driver.find_element_by_css_selector('div.favorKey3')
+        tab_adventure.click()
+        self.driver.implicitly_wait(5)
+        adventures = self.driver.find_elements_by_css_selector('form#adventureListForm table tbody tr')
+        aha = list(map(lambda x: {
+            'type': x.find_element_by_css_selector('td.location').text.strip(),
+            'coordsX': int(x.find_element_by_css_selector('span.coordinateX').text[1:].strip('\u202d\u202c')),
+            'coordsY': int(x.find_element_by_css_selector('span.coordinateY').text[:-1].strip('\u202d\u202c')),
+            'duration': x.find_element_by_css_selector('td.moveTime').text.strip(),
+            'danger': x.find_element_by_css_selector('td.difficulty img').get_attribute('alt'),
+            'lefttime': x.find_element_by_css_selector('td.timeLeft').text.strip()
+        }, adventures))
+        return aha
+
     def logout(self):
         btn_logout = self.driver.find_element_by_xpath('//a[@href="logout.php"]')
         btn_logout.click()
@@ -164,6 +182,6 @@ class Travian(object):
 if __name__ == '__main__':
     t = Travian('', '', '')
     t.login()
-    pprint(t.get_current_village_buildings())
+    pprint(t.get_available_hero_adventures())
     t.logout()
     t.close_browser()
