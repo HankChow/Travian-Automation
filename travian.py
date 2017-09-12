@@ -41,27 +41,45 @@ class Travian(object):
         print('Successfully logged in.')
 
     # 装饰器
-    def switch_to_dorf1(self):
-        if 'dorf1.php' not in self.driver.current_url:
-            ul_navigation = self.driver.find_element_by_css_selector('ul#navigation')
-            ul_navigation.find_element_by_css_selector('li#n1').find_element_by_tag_name('a').click()
-            self.driver.implicitly_wait(5)
+    def switch_to_dorf(func):
+        def switch(self, *args, **kwargs):
+            if 'dorf' not in self.driver.current_url:
+                ul_navigation = self.driver.find_element_by_css_selector('ul#navigation')
+                ul_navigation.find_element_by_css_selector('li#n1').find_element_by_tag_name('a').click()
+                self.driver.implicitly_wait(5)
+            return func(self, *args, **kwargs)
+        return switch
 
     # 装饰器
-    def switch_to_dorf2(self):
-        if 'dorf2.php' not in self.driver.current_url:
-            ul_navigation = self.driver.find_element_by_css_selector('ul#navigation')
-            ul_navigation.find_element_by_css_selector('li#n2').find_element_by_tag_name('a').click()
-            self.driver.implicitly_wait(5)
+    def switch_to_dorf1(func):
+        def switch(self, *args, **kwargs):
+            if 'dorf1.php' not in self.driver.current_url:
+                ul_navigation = self.driver.find_element_by_css_selector('ul#navigation')
+                ul_navigation.find_element_by_css_selector('li#n1').find_element_by_tag_name('a').click()
+                self.driver.implicitly_wait(5)
+            return func(self, *args, **kwargs)
+        return switch
 
     # 装饰器
-    def switch_to_hero(self):
-        if 'dorf1.php' not in self.driver.current_url or 'dorf2.php' not in self.driver.current_url:
-            self.switch_to_dorf1()
-        btn_hero = self.driver.find_element_by_css_selector('button.heroImageButton')
-        btn_hero.click()
-        self.driver.implicitly_wait(5)
+    def switch_to_dorf2(func):
+        def switch(self, *args, **kwargs):
+            if 'dorf2.php' not in self.driver.current_url:
+                ul_navigation = self.driver.find_element_by_css_selector('ul#navigation')
+                ul_navigation.find_element_by_css_selector('li#n2').find_element_by_tag_name('a').click()
+                self.driver.implicitly_wait(5)
+            return func(self, *args, **kwargs)
+        return switch
 
+    # 装饰器
+    def switch_to_hero(func):
+        def switch(self, *args, **kwargs):
+            btn_hero = self.driver.find_element_by_css_selector('button.heroImageButton')
+            btn_hero.click()
+            self.driver.implicitly_wait(5)
+            return func(self, *args, **kwargs)
+        return switch
+
+    @switch_to_dorf
     def get_villages(self):
         village_box = self.driver.find_element_by_css_selector('div#sidebarBoxVillagelist')
         box_content = village_box.find_element_by_css_selector('div.content')
@@ -74,6 +92,7 @@ class Travian(object):
         }, villages))
         return vlg
 
+    @switch_to_dorf1
     def get_current_village_production(self):
         tbl_production = self.driver.find_element_by_css_selector('table#production')
         production_list = tbl_production.find_element_by_xpath('tbody').find_elements_by_xpath('tr')
@@ -83,6 +102,7 @@ class Travian(object):
                 int(item.find_element_by_class_name('num').text.strip('\u202d\u202c'))
         return cvp
 
+    @switch_to_dorf1
     def get_current_village_troops(self):
         tbl_troops = self.driver.find_element_by_css_selector('table#troops')
         troops_list = tbl_troops.find_element_by_xpath('tbody').find_elements_by_xpath('tr')
@@ -112,6 +132,7 @@ class Travian(object):
         }
         return cvr
 
+    @switch_to_dorf1
     def get_current_village_fields(self):
         field_map = self.driver.find_element_by_css_selector('map#rx')
         fields = field_map.find_elements_by_css_selector('area')
@@ -122,6 +143,7 @@ class Travian(object):
         }, list(filter(lambda x: 'id' in x.get_attribute('href'), fields))))
         return cvf
 
+    @switch_to_dorf2
     def get_current_village_buildings(self):
         building_map = self.driver.find_element_by_css_selector('map#clickareas')
         buildings = building_map.find_elements_by_css_selector('area')
@@ -139,6 +161,7 @@ class Travian(object):
                 item['alt'] = None
         return cvb
 
+    @switch_to_dorf
     def get_current_village_upgrading(self):
         anchor = self.driver.find_elements_by_css_selector('h5')
         if len(anchor) == 0:
@@ -154,6 +177,7 @@ class Travian(object):
             }, upgrades))
             return cvu
 
+    @switch_to_hero
     def get_available_hero_adventures(self):
         self.switch_to_hero()
         tab_adventure = self.driver.find_element_by_css_selector('div.favorKey3')
@@ -182,6 +206,7 @@ class Travian(object):
 if __name__ == '__main__':
     t = Travian('', '', '')
     t.login()
-    pprint(t.get_available_hero_adventures())
+    pprint(t.get_current_village_fields())
+    pprint(t.get_current_village_buildings())
     t.logout()
     t.close_browser()
