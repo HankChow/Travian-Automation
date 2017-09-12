@@ -23,7 +23,7 @@ class Travian(object):
         self.driver.execute_script(
             'document.evaluate(\'//a[@href="#login"]\',document,null,XPathResult.ANY_TYPE,null).iterateNext().click();')
         # 服务器列表
-        world_list = self.driver.find_element_by_class_name('worldGroup').find_elements_by_xpath('div')
+        world_list = self.driver.find_elements_by_css_selector('div.worldGroup div')
         for item in world_list:
             if item.text.lower() == self.server.lower():
                 item.click()
@@ -31,11 +31,11 @@ class Travian(object):
         else:
             print('No such server.')
             exit()
-        input_username = self.driver.find_element_by_name('usernameOrEmail')
+        input_username = self.driver.find_element_by_css_selector('input[name=usernameOrEmail]')
         input_username.send_keys(self.username)
-        input_password = self.driver.find_element_by_name('password')
+        input_password = self.driver.find_element_by_css_selector('input[name=password]')
         input_password.send_keys(self.password)
-        btn_submit_login = self.driver.find_element_by_id('id')
+        btn_submit_login = self.driver.find_element_by_css_selector('button#id')
         btn_submit_login.click()
         self.driver.implicitly_wait(10)
         print('Successfully logged in.')
@@ -45,7 +45,7 @@ class Travian(object):
         def switch(self, *args, **kwargs):
             if 'dorf' not in self.driver.current_url:
                 ul_navigation = self.driver.find_element_by_css_selector('ul#navigation')
-                ul_navigation.find_element_by_css_selector('li#n1').find_element_by_tag_name('a').click()
+                ul_navigation.find_element_by_css_selector('li#n1 a').click()
                 self.driver.implicitly_wait(5)
             return func(self, *args, **kwargs)
         return switch
@@ -55,7 +55,7 @@ class Travian(object):
         def switch(self, *args, **kwargs):
             if 'dorf1.php' not in self.driver.current_url:
                 ul_navigation = self.driver.find_element_by_css_selector('ul#navigation')
-                ul_navigation.find_element_by_css_selector('li#n1').find_element_by_tag_name('a').click()
+                ul_navigation.find_element_by_css_selector('li#n1 a').click()
                 self.driver.implicitly_wait(5)
             return func(self, *args, **kwargs)
         return switch
@@ -65,7 +65,7 @@ class Travian(object):
         def switch(self, *args, **kwargs):
             if 'dorf2.php' not in self.driver.current_url:
                 ul_navigation = self.driver.find_element_by_css_selector('ul#navigation')
-                ul_navigation.find_element_by_css_selector('li#n2').find_element_by_tag_name('a').click()
+                ul_navigation.find_element_by_css_selector('li#n2 a').click()
                 self.driver.implicitly_wait(5)
             return func(self, *args, **kwargs)
         return switch
@@ -94,22 +94,20 @@ class Travian(object):
 
     @switch_to_dorf1
     def get_current_village_production(self):
-        tbl_production = self.driver.find_element_by_css_selector('table#production')
-        production_list = tbl_production.find_element_by_xpath('tbody').find_elements_by_xpath('tr')
+        production_list = self.driver.find_elements_by_css_selector('table#production tbody tr')
         cvp = {}
         for item in production_list:
-            cvp[item.find_element_by_class_name('res').text.strip(':')] = \
-                int(item.find_element_by_class_name('num').text.strip('\u202d\u202c'))
+            cvp[item.find_element_by_css_selector('td.res').text.strip(':')] = \
+                int(item.find_element_by_css_selector('td.num').text.strip('\u202d\u202c'))
         return cvp
 
     @switch_to_dorf1
     def get_current_village_troops(self):
-        tbl_troops = self.driver.find_element_by_css_selector('table#troops')
-        troops_list = tbl_troops.find_element_by_xpath('tbody').find_elements_by_xpath('tr')
+        troops_list = self.driver.find_elements_by_css_selector('table#troops tdoby tr')
         cvt = {}
         for item in troops_list:
-            cvt[item.find_element_by_class_name('un').text.strip()] = \
-                int(item.find_element_by_class_name('num').text.strip('\u202d\u202c'))
+            cvt[item.find_element_by_css_selector('td.un').text.strip()] = \
+                int(item.find_element_by_css_selector('td.num').text.strip('\u202d\u202c'))
         return cvt
 
     def get_current_village_resources(self):
@@ -195,7 +193,7 @@ class Travian(object):
         return aha
 
     def logout(self):
-        btn_logout = self.driver.find_element_by_xpath('//a[@href="logout.php"]')
+        btn_logout = self.driver.find_element_by_css_selector('a[href="logout.php"]')
         btn_logout.click()
         print('Successfully logged out.')
 
@@ -206,7 +204,6 @@ class Travian(object):
 if __name__ == '__main__':
     t = Travian('', '', '')
     t.login()
-    pprint(t.get_current_village_fields())
-    pprint(t.get_current_village_buildings())
+    pprint(t.get_current_village_resources())
     t.logout()
     t.close_browser()
