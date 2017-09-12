@@ -12,8 +12,8 @@ class Travian(object):
         self.username = username
         self.password = passwd
         self.server = server
-        self.driver = webdriver.Firefox()
-        # self.driver = webdriver.PhantomJS()
+        # self.driver = webdriver.Firefox()
+        self.driver = webdriver.PhantomJS()
 
     def login(self):
         self.driver.get('https://www.travian.com/international')
@@ -40,7 +40,7 @@ class Travian(object):
         self.driver.implicitly_wait(10)
         print('Successfully logged in.')
 
-    # 装饰器
+    # 装饰器，当页面不在 dorf1 或 dorf2 时，跳转到 dorf1
     def switch_to_dorf(func):
         def switch(self, *args, **kwargs):
             if 'dorf' not in self.driver.current_url:
@@ -50,7 +50,7 @@ class Travian(object):
             return func(self, *args, **kwargs)
         return switch
 
-    # 装饰器
+    # 装饰器，当页面不在 dorf1 时，跳转到 dorf1
     def switch_to_dorf1(func):
         def switch(self, *args, **kwargs):
             if 'dorf1.php' not in self.driver.current_url:
@@ -60,7 +60,7 @@ class Travian(object):
             return func(self, *args, **kwargs)
         return switch
 
-    # 装饰器
+    # 装饰器，当页面不在 dorf2 时，跳转到 dorf2
     def switch_to_dorf2(func):
         def switch(self, *args, **kwargs):
             if 'dorf2.php' not in self.driver.current_url:
@@ -70,7 +70,7 @@ class Travian(object):
             return func(self, *args, **kwargs)
         return switch
 
-    # 装饰器
+    # 装饰器，跳转到英雄页面
     def switch_to_hero(func):
         def switch(self, *args, **kwargs):
             btn_hero = self.driver.find_element_by_css_selector('button.heroImageButton')
@@ -79,7 +79,18 @@ class Travian(object):
             return func(self, *args, **kwargs)
         return switch
 
-    @switch_to_dorf
+    def logout(self):
+        btn_logout = self.driver.find_element_by_css_selector('a[href="logout.php"]')
+        btn_logout.click()
+        print('Successfully logged out.')
+
+    def close_browser(self):
+        self.driver.quit()
+
+
+class TravianGetter(Travian):
+
+    @Travian.switch_to_dorf
     def get_villages(self):
         village_box = self.driver.find_element_by_css_selector('div#sidebarBoxVillagelist')
         box_content = village_box.find_element_by_css_selector('div.content')
@@ -92,7 +103,7 @@ class Travian(object):
         }, villages))
         return vlg
 
-    @switch_to_dorf1
+    @Travian.switch_to_dorf1
     def get_current_village_production(self):
         production_list = self.driver.find_elements_by_css_selector('table#production tbody tr')
         cvp = {}
@@ -101,7 +112,7 @@ class Travian(object):
                 int(item.find_element_by_css_selector('td.num').text.strip('\u202d\u202c'))
         return cvp
 
-    @switch_to_dorf1
+    @Travian.switch_to_dorf1
     def get_current_village_troops(self):
         troops_list = self.driver.find_elements_by_css_selector('table#troops tdoby tr')
         cvt = {}
@@ -130,7 +141,7 @@ class Travian(object):
         }
         return cvr
 
-    @switch_to_dorf1
+    @Travian.switch_to_dorf1
     def get_current_village_fields(self):
         field_map = self.driver.find_element_by_css_selector('map#rx')
         fields = field_map.find_elements_by_css_selector('area')
@@ -141,10 +152,12 @@ class Travian(object):
         }, list(filter(lambda x: 'id' in x.get_attribute('href'), fields))))
         return cvf
 
-    @switch_to_dorf2
+    @Travian.switch_to_dorf2
     def get_current_village_buildings(self):
         building_map = self.driver.find_element_by_css_selector('map#clickareas')
         buildings = building_map.find_elements_by_css_selector('area')
+        # 如果某个位置未有建筑，其 alt 属性为"Building site"
+        # 如果某个位置已有建筑，其 alt 属性为一段 HTML ，因此先将 alt 置为 None ，随后再用 BeautifulSoup 去解析
         cvb = list(map(lambda x: {
             'id': int(x.get_attribute('href').split('=')[1]),
             'type': 'empty' if x.get_attribute('alt') == 'Building site' else None,
@@ -159,7 +172,7 @@ class Travian(object):
                 item['alt'] = None
         return cvb
 
-    @switch_to_dorf
+    @Travian.switch_to_dorf
     def get_current_village_upgrading(self):
         anchor = self.driver.find_elements_by_css_selector('h5')
         if len(anchor) == 0:
@@ -175,7 +188,7 @@ class Travian(object):
             }, upgrades))
             return cvu
 
-    @switch_to_hero
+    @Travian.switch_to_hero
     def get_available_hero_adventures(self):
         self.switch_to_hero()
         tab_adventure = self.driver.find_element_by_css_selector('div.favorKey3')
@@ -192,18 +205,20 @@ class Travian(object):
         }, adventures))
         return aha
 
-    def logout(self):
-        btn_logout = self.driver.find_element_by_css_selector('a[href="logout.php"]')
-        btn_logout.click()
-        print('Successfully logged out.')
 
-    def close_browser(self):
-        self.driver.quit()
+
+class TravianSetter(Travian):
+
+    @Travian.switch_to_dorf
+    def set_upgrade(self, uid):
+        upgrade_url = '/'.join(self.driver.current_url.split('/')[:-1]) + 'build.php?id={uid}'.format(uid=uid)
+        self.driver.get(upgrade_url)
+        self.driver.implicitly_wait(5)
 
 
 if __name__ == '__main__':
-    t = Travian('', '', '')
-    t.login()
-    pprint(t.get_current_village_resources())
-    t.logout()
-    t.close_browser()
+    tg = TravianGetter('', '', '')
+    tg.login()
+    pprint(tg.get_current_village_buildings())
+    tg.logout()
+    tg.close_browser()
