@@ -70,7 +70,8 @@ class Treq(object):
             'lumber': stockbar.select('span#l1')[0].string.strip().strip('\u202d\u202c'),
             'clay': stockbar.select('span#l2')[0].string.strip().strip('\u202d\u202c'),
             'iron': stockbar.select('span#l3')[0].string.strip().strip('\u202d\u202c'),
-            'crop': stockbar.select('span#l4')[0].string.strip().strip('\u202d\u202c')
+            'crop': stockbar.select('span#l4')[0].string.strip().strip('\u202d\u202c'),
+            'free': stockbar.select('span#stockBarFreeCrop').string.strip('\u202d\u202c')
         }
         for k in cvr.keys():
             cvr[k] = int(cvr[k].replace('.', ''))
@@ -124,8 +125,66 @@ class Treq(object):
             }, upgrade_list))
             return cvu
 
+    def get_position_upgrade_cost(self, position, new_type=None):
+        if 1 <= position <= 40:
+            url = 'https://{server}.travian.com/build.php?id={id}'.format(server=self.server, id=position)
+            soup = BeautifulSoup(self.req.get(url).text, 'lxml')
+            # 如果该位置已有建筑，在标题应有一个 span 标签显示建筑等级
+            # 根据是否有该 span 标签来判断某个位置是否已有建筑
+            if position >= 19 and not len(soup.select('h1.titleInHeader span.level')):
+                building_block = soup.select('div#contract_building{new_type}'.format(new_type=new_type))[0]
+                cost_list = building_block.select('div.showCosts span')
+                time_cost = building_block.select('div.showCosts span.clocks')
+            else:
+                cost_list = soup.select('div.contractCosts span')
+                time_cost = soup.select('div.upgradeButtonsContainer span.clocks')
+            puc = {
+                'lumber': int(list(cost_list[0].strings)[0]),
+                'clay': int(list(cost_list[1].strings)[0]),
+                'iron': int(list(cost_list[2].strings)[0]),
+                'crop': int(list(cost_list[3].strings)[0]),
+                'free': int(list(cost_list[4].strings)[0]),
+                'time': list(time_cost[0].strings)[0]
+            }
+            return puc
+        else:
+            print('Inavailable position.')
+
+    def do_upgrade(self, position, new_type=None):
+        if 1 <= position <= 40:
+            url = 'https://{server}.travian.com/build.php?id={id}'.format(server=self.server, id=position)
+            soup = BeautifulSoup(self.req.get(url).text, 'lxml')
+            if position >= 19 and not len(soup.select('h1.titleInHeader span.level')):
+                building_block = soup.select('div#contract_building{new_type}'.format(new_type=new_type))[0]
+                btn_upgrade = building_block.select('div.contractLink button')[0]
+            else:
+                btn_upgrade = soup.select('div.upgradeButtonsContainer div.section1 button')[0]
+            shortlink = btn_upgrade['onclick'].split('\'')[1]
+            upgrade_link = 'https://{server}.travian.com/{shortlink}'.format(server=self.server, shortlink=shortlink)
+            self.req.get(upgrade_link)
+        else:
+            print('Inavailable position.')
+
+    def get_available_hero_adventure(self):
+        url = 'https://{server}.travian.com/hero.php?t=3'.format(server=self.server)
+        soup = BeautifulSoup(self.req.get(url).text, 'lxml')
+        adventure_list = soup.select('form#adventureListForm table tbody tr')
+        aha = list(map(lambda x: {
+            'type': list(x.select('td.location')[0].strings)[0].strip(),
+            'coordsX': x.select('span.coordinateX')[0].string[1:].strip('\u202d\u202c'),
+            'coordsY': x.select('span.coordinateY')[0].string[:-1].strip('\u202d\u202c'),
+            'duration': x.select('td.moveTime')[0].string.strip(),
+            'danger': x.select('td.difficulty img')[0]['alt'],
+            'lefttime': x.select('td.timeLeft span')[0].string.strip()
+        }, adventure_list))
+        return aha
+
+    def logout(self):
+        url = 'https://{server}.travian.com/logout.php'.format(server=self.server)
+        self.req.get(url)
+
 
 if __name__ == '__main__':
     t = Treq('hank47', 'zc_7r4v14n', 'ts7')
     t.login()
-    pprint(t.get_current_village_upgrading())
+    pprint(t.get_position_upgrade_cost(31))
