@@ -3,6 +3,8 @@
 
 from bs4 import BeautifulSoup
 from pprint import pprint
+import json
+import re
 import requests
 import time
 
@@ -155,15 +157,27 @@ class Treq(object):
             url = 'https://{server}.travian.com/build.php?id={id}'.format(server=self.server, id=position)
             soup = BeautifulSoup(self.req.get(url).text, 'lxml')
             if position >= 19 and not len(soup.select('h1.titleInHeader span.level')):
+                if not new_type:
+                    print('Without choosing building type.')
+                    return False
                 building_block = soup.select('div#contract_building{new_type}'.format(new_type=new_type))[0]
                 btn_upgrade = building_block.select('div.contractLink button')[0]
             else:
                 btn_upgrade = soup.select('div.upgradeButtonsContainer div.section1 button')[0]
-            shortlink = btn_upgrade['onclick'].split('\'')[1]
-            upgrade_link = 'https://{server}.travian.com/{shortlink}'.format(server=self.server, shortlink=shortlink)
-            self.req.get(upgrade_link)
+            if 'green' in btn_upgrade['class']:
+                shortlink = btn_upgrade['onclick'].split('\'')[1]
+                upgrade_link = 'https://{server}.travian.com/{shortlink}'.format(
+                    server=self.server,
+                    shortlink=shortlink
+                )
+                self.req.get(upgrade_link)
+                return True
+            else:
+                print('Unable to upgrade.')
+                return False
         else:
             print('Inavailable position.')
+            return False
 
     def get_available_hero_adventure(self):
         url = 'https://{server}.travian.com/hero.php?t=3'.format(server=self.server)
@@ -179,6 +193,64 @@ class Treq(object):
         }, adventure_list))
         return aha
 
+    def get_map_information(self, x, y):
+        token_url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
+        soup = BeautifulSoup(self.req.get(token_url).text, 'lxml')
+        ajax_token = re.search('[0-9a-f]{32}', soup.find('script').string).group()
+        post_data = {
+            'ajaxToken': ajax_token,
+            'cmd': 'mapPositionData',
+            'data[x]': x,
+            'data[y]': y,
+            'data[zoomLevel]': 3
+        }
+        url = 'https://{server}.travian.com/ajax.php?cmd=mapPositionData'.format(server=self.server)
+        raw_tiles = json.loads(self.req.post(url, data=post_data).text)['response']['data']['tiles']
+        return raw_tiles
+
+    def resolve_map_infomation(self, raw_tile):
+        resource_field_array = {
+            '1': '3-3-3-9',
+            '2': '3-4-5-6',
+            '3': '4-4-4-6',
+            '4': '4-5-3-6',
+            '5': '5-3-4-6',
+            '6': '1-1-1-15',
+            '7': '4-4-3-7',
+            '8': '3-4-4-7',
+            '9': '4-3-4-7',
+            '10': '3-5-4-6',
+            '11': '4-3-5-6',
+            '12': '5-4-3-6'
+        }
+        formatted = {
+            'x': raw_tile['x'],
+            'y': raw_tile['y']
+        }
+        if 'c' not in raw_tile.keys():
+            formatted['type'] = 'wildness'
+        elif 'k.vt' in raw_tile['c']:
+            formatted['type'] = 'abandoned valley'
+        elif 'k.fo' in raw_tile['c']:
+            formatted['type'] = 'unoccupied oasis'
+        elif 'k.bt' in raw_tile['c']:
+            formatted['type'] = 'occupied oasis'
+        elif 'k.dt' in raw_tile['c']:
+            formatted['type'] = 'village'
+        else:
+            formatted['type'] = 'unidentified'
+        if formatted['type'] == 'abandoned valley':
+            formatted['info'] = resource_field_array[re.search(re.compile('k\.f\d{1,2}'), raw_tile['c']).group()[3:]]
+        elif formatted['type'] == 'unoccupied oasis' or 'occupied oasis':
+            bonus = ', '.join(list(map(lambda x: x.replace(' ', '+')
+                             .replace(r'{a.r1}', 'lumber')
+                             .replace(r'{a.r2}', 'clay')
+                             .replace(r'{a.r3}', 'iron')
+                             .replace(r'{a.r4}', 'crop'),
+                             re.findall(re.compile('\{a.r\d\}\s\d{1,2}%'), raw_tile['t']))))
+            formatted['info'] = bonus
+        return formatted
+
     def logout(self):
         url = 'https://{server}.travian.com/logout.php'.format(server=self.server)
         self.req.get(url)
@@ -187,4 +259,4 @@ class Treq(object):
 if __name__ == '__main__':
     t = Treq('hank47', 'zc_7r4v14n', 'ts7')
     t.login()
-    pprint(t.get_position_upgrade_cost(31))
+    a = list(map(t.resolve_map_infomation, t.get_map_information(0, 0)))
