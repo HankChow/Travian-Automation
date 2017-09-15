@@ -205,8 +205,12 @@ class Treq(object):
             'data[zoomLevel]': 3
         }
         url = 'https://{server}.travian.com/ajax.php?cmd=mapPositionData'.format(server=self.server)
-        raw_tiles = json.loads(self.req.post(url, data=post_data).text)['response']['data']['tiles']
-        return raw_tiles
+        try:
+            raw_tiles = json.loads(self.req.post(url, data=post_data).text)['response']['data']['tiles']
+            return raw_tiles
+        except Exception as e:
+            print('Unexpected response.')
+            return None
 
     def resolve_map_infomation(self, raw_tile):
         resource_field_array = {
@@ -224,8 +228,8 @@ class Treq(object):
             '12': '5-4-3-6'
         }
         formatted = {
-            'x': raw_tile['x'],
-            'y': raw_tile['y']
+            'x': int(raw_tile['x']),
+            'y': int(raw_tile['y'])
         }
         if 'c' not in raw_tile.keys():
             formatted['type'] = 'wildness'
@@ -243,11 +247,11 @@ class Treq(object):
             formatted['info'] = resource_field_array[re.search(re.compile('k\.f\d{1,2}'), raw_tile['c']).group()[3:]]
         elif formatted['type'] == 'unoccupied oasis' or 'occupied oasis':
             bonus = ', '.join(list(map(lambda x: x.replace(' ', '+')
-                             .replace(r'{a.r1}', 'lumber')
-                             .replace(r'{a.r2}', 'clay')
-                             .replace(r'{a.r3}', 'iron')
-                             .replace(r'{a.r4}', 'crop'),
-                             re.findall(re.compile('\{a.r\d\}\s\d{1,2}%'), raw_tile['t']))))
+                                       .replace(r'{a.r1}', 'lumber')
+                                       .replace(r'{a.r2}', 'clay')
+                                       .replace(r'{a.r3}', 'iron')
+                                       .replace(r'{a.r4}', 'crop'),
+                                       re.findall(re.compile('{a.r\d}\s\d{1,2}%'), raw_tile['t']))))
             formatted['info'] = bonus
         return formatted
 
@@ -257,6 +261,7 @@ class Treq(object):
 
 
 if __name__ == '__main__':
-    t = Treq('hank47', 'zc_7r4v14n', 'ts7')
+    t = Treq('', '', '')
     t.login()
-    a = list(map(t.resolve_map_infomation, t.get_map_information(0, 0)))
+    pprint(t.get_map_information(0, 0))
+    # a = (list(map(t.resolve_map_infomation, t.get_map_information(0, 0))))
