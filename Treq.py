@@ -56,6 +56,9 @@ class Treq(object):
         url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
         soup = BeautifulSoup(self.req.get(url).text, 'lxml')
         troops_list = soup.select('table#troops tbody tr')
+        if len(troops_list[0].select('td.un')) == 0:
+            cvt = None
+            return cvt
         cvt = {}
         for item in troops_list:
             cvt[item.select('td.un')[0].string.strip()] = \
@@ -89,6 +92,27 @@ class Treq(object):
             'level': int(x['alt'].split(' Level ')[1])
         }, list(filter(lambda x: 'id' in x['href'], field_list))))
         return cvf
+
+    def get_current_village_movements(self):
+        url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
+        soup = BeautifulSoup(self.req.get(url).text, 'lxml')
+        movements_list = soup.select('table#movements tr')
+        if len(movements_list) == 0:
+            cvm = None
+            return cvm
+        cvm = {}
+        cursor = None
+        for item in movements_list:
+            if len(item.select('th')) > 0:
+                cursor = item.select('th')[0].string.strip()[:-1]
+                cvm[cursor] = []
+            else:
+                cvm[cursor].append({
+                    'count': int(item.select('div.mov span')[0].string.split()[0]),
+                    'type': item.select('div.mov span')[0].string.split()[1],
+                    'duration': item.select('div.dur_r span')[0].string
+                })
+        return cvm
 
     def get_current_village_buildings(self):
         url = 'https://{server}.travian.com/dorf2.php'.format(server=self.server)
@@ -263,5 +287,4 @@ class Treq(object):
 if __name__ == '__main__':
     t = Treq('', '', '')
     t.login()
-    pprint(t.get_map_information(0, 0))
-    # a = (list(map(t.resolve_map_infomation, t.get_map_information(0, 0))))
+    pprint(t.get_current_village_movements())
