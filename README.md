@@ -21,3 +21,5 @@ To make operations in Travian via Python3.
 * v0.5: Map search was added.
 
     * v0.5.1: Account might be banned when searching the map too frequently. Add judgement of whether being banned.
+    
+    * v0.5.2: Add getting movements of troops. Fixed the exception of when there is no troops in village.
