@@ -17,6 +17,11 @@ class Treq(object):
         self.server = server
         self.req = requests.Session()
 
+    # MANAGEMENT:
+    #
+    # login
+    # logout
+
     def login(self):
         url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
         login_data = {
@@ -28,59 +33,58 @@ class Treq(object):
         }
         self.req.post(url, data=login_data)
 
-    def get_villages(self):
-        url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
-        soup = BeautifulSoup(self.req.get(url).text, 'lxml')
-        village_list = soup.select('div#sidebarBoxVillagelist div.content li')
-        vlg = list(map(lambda x: {
-            'current': True if 'active' in x['class'] else False,
-            'name': x.select('div.name')[0].string.strip(),
-            'coordsX': x.select('span.coordinateX')[0].string[1:].strip('\u202d\u202c'),
-            'coordsY': x.select('span.coordinateY')[0].string[:-1].strip('\u202d\u202c')
-        }, village_list))
-        return vlg
+    def logout(self):
+        url = 'https://{server}.travian.com/logout.php'.format(server=self.server)
+        self.req.get(url)
 
-    def get_current_village_production(self):
-        url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
-        soup = BeautifulSoup(self.req.get(url).text, 'lxml')
-        production_list = soup.select('table#production tbody tr')
-        cvp = {
-            'lumber': int(production_list[0].select('td.num')[0].string.strip().strip('\u202d\u202c')),
-            'clay': int(production_list[1].select('td.num')[0].string.strip().strip('\u202d\u202c')),
-            'iron': int(production_list[2].select('td.num')[0].string.strip().strip('\u202d\u202c')),
-            'crop': int(production_list[3].select('td.num')[0].string.strip().strip('\u202d\u202c'))
-        }
-        return cvp
+    # GETTERS:
+    #
+    # get_available_hero_adventure
+    # get_current_village_buildings
+    # get_current_village_fields
+    # get_current_village_movements
+    # get_current_village_production
+    # get_current_village_resources
+    # get_current_village_troops
+    # get_current_village_upgrading
+    # get_map_information
+    # get_position_upgrade_cost
+    # get_villages
 
-    def get_current_village_troops(self):
-        url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
+    def get_available_hero_adventure(self):
+        url = 'https://{server}.travian.com/hero.php?t=3'.format(server=self.server)
         soup = BeautifulSoup(self.req.get(url).text, 'lxml')
-        troops_list = soup.select('table#troops tbody tr')
-        if len(troops_list[0].select('td.un')) == 0:
-            cvt = None
-            return cvt
-        cvt = {}
-        for item in troops_list:
-            cvt[item.select('td.un')[0].string.strip()] = \
-                int(item.select('td.num')[0].string.strip().strip('\u202d\u202c'))
-        return cvt
+        adventure_list = soup.select('form#adventureListForm table tbody tr')
+        aha = list(map(lambda x: {
+            'kid': int(re.search('\d+', x['id']).group().strip()),
+            'type': list(x.select('td.location')[0].strings)[0].strip(),
+            'coordsX': int(x.select('span.coordinateX')[0].string[1:].strip('\u202d\u202c')),
+            'coordsY': int(x.select('span.coordinateY')[0].string[:-1].strip('\u202d\u202c')),
+            'duration': x.select('td.moveTime')[0].string.strip(),
+            'danger': x.select('td.difficulty img')[0]['alt'],
+            'lefttime': x.select('td.timeLeft span')[0].string.strip()
+        }, adventure_list))
+        return aha
 
-    def get_current_village_resources(self):
-        url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
+    def get_current_village_buildings(self):
+        url = 'https://{server}.travian.com/dorf2.php'.format(server=self.server)
         soup = BeautifulSoup(self.req.get(url).text, 'lxml')
-        stockbar = soup.select('ul#stockBar')[0]
-        cvr = {
-            'warehouse': stockbar.select('span#stockBarWarehouse')[0].string.strip().strip('\u202d\u202c'),
-            'granary': stockbar.select('span#stockBarGranary')[0].string.strip().strip('\u202d\u202c'),
-            'lumber': stockbar.select('span#l1')[0].string.strip().strip('\u202d\u202c'),
-            'clay': stockbar.select('span#l2')[0].string.strip().strip('\u202d\u202c'),
-            'iron': stockbar.select('span#l3')[0].string.strip().strip('\u202d\u202c'),
-            'crop': stockbar.select('span#l4')[0].string.strip().strip('\u202d\u202c'),
-            'free': stockbar.select('span#stockBarFreeCrop').string.strip('\u202d\u202c')
-        }
-        for k in cvr.keys():
-            cvr[k] = int(cvr[k].replace('.', ''))
-        return cvr
+        building_list = soup.select('map#clickareas area')
+        # 如果某个位置未有建筑，其 alt 属性为"Building site"
+        # 如果某个位置已有建筑，其 alt 属性为一段 HTML ，因此先将 alt 置为 None ，随后再用进一步解析
+        cvb = list(map(lambda x: {
+            'id': int(x['href'].split('=')[1]),
+            'type': 'empty' if x['alt'] == 'Building site' else None,
+            'level': 0 if x['alt'] == 'Building site' else None,
+            'alt': None if x['alt'] == 'Building site' else x['alt']
+        }, building_list))
+        for item in cvb:
+            if not item['type']:
+                alt_soup = BeautifulSoup(item['alt'], 'lxml')
+                item['type'] = list(alt_soup.find('p').strings)[0].strip()
+                item['level'] = int(alt_soup.find('span', class_='level').string.split()[1])
+                item['alt'] = None
+        return cvb
 
     def get_current_village_fields(self):
         url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
@@ -114,25 +118,47 @@ class Treq(object):
                 })
         return cvm
 
-    def get_current_village_buildings(self):
-        url = 'https://{server}.travian.com/dorf2.php'.format(server=self.server)
+    def get_current_village_production(self):
+        url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
         soup = BeautifulSoup(self.req.get(url).text, 'lxml')
-        building_list = soup.select('map#clickareas area')
-        # 如果某个位置未有建筑，其 alt 属性为"Building site"
-        # 如果某个位置已有建筑，其 alt 属性为一段 HTML ，因此先将 alt 置为 None ，随后再用进一步解析
-        cvb = list(map(lambda x: {
-            'id': int(x['href'].split('=')[1]),
-            'type': 'empty' if x['alt'] == 'Building site' else None,
-            'level': 0 if x['alt'] == 'Building site' else None,
-            'alt': None if x['alt'] == 'Building site' else x['alt']
-        }, building_list))
-        for item in cvb:
-            if not item['type']:
-                alt_soup = BeautifulSoup(item['alt'], 'lxml')
-                item['type'] = list(alt_soup.find('p').strings)[0].strip()
-                item['level'] = int(alt_soup.find('span', class_='level').string.split()[1])
-                item['alt'] = None
-        return cvb
+        production_list = soup.select('table#production tbody tr')
+        cvp = {
+            'lumber': int(production_list[0].select('td.num')[0].string.strip().strip('\u202d\u202c')),
+            'clay': int(production_list[1].select('td.num')[0].string.strip().strip('\u202d\u202c')),
+            'iron': int(production_list[2].select('td.num')[0].string.strip().strip('\u202d\u202c')),
+            'crop': int(production_list[3].select('td.num')[0].string.strip().strip('\u202d\u202c'))
+        }
+        return cvp
+
+    def get_current_village_resources(self):
+        url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
+        soup = BeautifulSoup(self.req.get(url).text, 'lxml')
+        stockbar = soup.select('ul#stockBar')[0]
+        cvr = {
+            'warehouse': stockbar.select('span#stockBarWarehouse')[0].string.strip().strip('\u202d\u202c'),
+            'granary': stockbar.select('span#stockBarGranary')[0].string.strip().strip('\u202d\u202c'),
+            'lumber': stockbar.select('span#l1')[0].string.strip().strip('\u202d\u202c'),
+            'clay': stockbar.select('span#l2')[0].string.strip().strip('\u202d\u202c'),
+            'iron': stockbar.select('span#l3')[0].string.strip().strip('\u202d\u202c'),
+            'crop': stockbar.select('span#l4')[0].string.strip().strip('\u202d\u202c'),
+            'free': stockbar.select('span#stockBarFreeCrop')[0].string.strip('\u202d\u202c')
+        }
+        for k in cvr.keys():
+            cvr[k] = int(cvr[k].replace('.', ''))
+        return cvr
+
+    def get_current_village_troops(self):
+        url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
+        soup = BeautifulSoup(self.req.get(url).text, 'lxml')
+        troops_list = soup.select('table#troops tbody tr')
+        if len(troops_list[0].select('td.un')) == 0:
+            cvt = None
+            return cvt
+        cvt = {}
+        for item in troops_list:
+            cvt[item.select('td.un')[0].string.strip()] = \
+                int(item.select('td.num')[0].string.strip().strip('\u202d\u202c'))
+        return cvt
 
     def get_current_village_upgrading(self):
         url = 'https://{server}.travian.com/dorf2.php'.format(server=self.server)
@@ -150,6 +176,72 @@ class Treq(object):
                 'finish': list(x.select('div.buildDuration')[0].strings)[-1].split()[-1].strip()
             }, upgrade_list))
             return cvu
+
+    def get_map_information(self, x, y):
+
+        def resolve_map_infomation(raw_tile):
+            resource_field_array = {
+                '1': '3-3-3-9',
+                '2': '3-4-5-6',
+                '3': '4-4-4-6',
+                '4': '4-5-3-6',
+                '5': '5-3-4-6',
+                '6': '1-1-1-15',
+                '7': '4-4-3-7',
+                '8': '3-4-4-7',
+                '9': '4-3-4-7',
+                '10': '3-5-4-6',
+                '11': '4-3-5-6',
+                '12': '5-4-3-6'
+            }
+            formatted = {
+                'x': int(raw_tile['x']),
+                'y': int(raw_tile['y'])
+            }
+            if 'c' not in raw_tile.keys():
+                formatted['type'] = 'wilderness'
+            elif 'k.vt' in raw_tile['c']:
+                formatted['type'] = 'abandoned valley'
+            elif 'k.fo' in raw_tile['c']:
+                formatted['type'] = 'unoccupied oasis'
+            elif 'k.bt' in raw_tile['c']:
+                formatted['type'] = 'occupied oasis'
+            elif 'k.dt' in raw_tile['c']:
+                formatted['type'] = 'village'
+            else:
+                formatted['type'] = 'unidentified'
+            if formatted['type'] == 'abandoned valley':
+                formatted['info'] = resource_field_array[
+                    re.search(re.compile('k\.f\d{1,2}'), raw_tile['c']).group()[3:]]
+            elif formatted['type'] == 'unoccupied oasis' or 'occupied oasis':
+                bonus = ', '.join(list(map(lambda z: z.replace(' ', '+')
+                                           .replace(r'{a.r1}', 'lumber')
+                                           .replace(r'{a.r2}', 'clay')
+                                           .replace(r'{a.r3}', 'iron')
+                                           .replace(r'{a.r4}', 'crop'),
+                                           re.findall(re.compile('{a.r\d}\s\d{1,2}%'), raw_tile['t']))))
+                formatted['info'] = bonus
+            return formatted
+        token_url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
+        soup = BeautifulSoup(self.req.get(token_url).text, 'lxml')
+        ajax_token = re.search('[0-9a-f]{32}', soup.find('script').string).group()
+        post_data = {
+            'ajaxToken': ajax_token,
+            'cmd': 'mapPositionData',
+            'data[x]': x,
+            'data[y]': y,
+            'data[zoomLevel]': 1
+        }
+        url = 'https://{server}.travian.com/ajax.php?cmd=mapPositionData'.format(server=self.server)
+        try:
+            raw_tiles = json.loads(self.req.post(url, data=post_data).text)['response']['data']['tiles']
+            tiles = list(map(resolve_map_infomation, raw_tiles))
+            return tiles
+        except Exception as e:
+            print('Unexpected response.')
+            return None
+        finally:
+            pass
 
     def get_position_upgrade_cost(self, position, new_type=None):
         if 1 <= position <= 40:
@@ -175,6 +267,38 @@ class Treq(object):
             return puc
         else:
             print('Inavailable position.')
+
+    def get_villages(self):
+        url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
+        soup = BeautifulSoup(self.req.get(url).text, 'lxml')
+        village_list = soup.select('div#sidebarBoxVillagelist div.content li')
+        vlg = list(map(lambda x: {
+            'current': True if 'active' in x['class'] else False,
+            'name': x.select('div.name')[0].string.strip(),
+            'coordsX': int(x.select('span.coordinateX')[0].string[1:].strip('\u202d\u202c')),
+            'coordsY': int(x.select('span.coordinateY')[0].string[:-1].strip('\u202d\u202c'))
+        }, village_list))
+        return vlg
+
+    # DOERS:
+    #
+    # do_adventure
+    # do_upgrade
+
+    # 无法使用，原因不明
+    def do_adventure(self, kid):
+        url = 'https://{server}.travian.com/start_adventure.php'
+        post_data = {
+            'a': 1,
+            'from': 'list',
+            'kid': kid,
+            'send': 1
+        }
+        self.req.post(url, data=post_data)
+        return True
+
+    def do_send_troops(self, scheme):
+        pass
 
     def do_upgrade(self, position, new_type=None):
         if 1 <= position <= 40:
@@ -203,88 +327,7 @@ class Treq(object):
             print('Inavailable position.')
             return False
 
-    def get_available_hero_adventure(self):
-        url = 'https://{server}.travian.com/hero.php?t=3'.format(server=self.server)
-        soup = BeautifulSoup(self.req.get(url).text, 'lxml')
-        adventure_list = soup.select('form#adventureListForm table tbody tr')
-        aha = list(map(lambda x: {
-            'type': list(x.select('td.location')[0].strings)[0].strip(),
-            'coordsX': x.select('span.coordinateX')[0].string[1:].strip('\u202d\u202c'),
-            'coordsY': x.select('span.coordinateY')[0].string[:-1].strip('\u202d\u202c'),
-            'duration': x.select('td.moveTime')[0].string.strip(),
-            'danger': x.select('td.difficulty img')[0]['alt'],
-            'lefttime': x.select('td.timeLeft span')[0].string.strip()
-        }, adventure_list))
-        return aha
-
-    def get_map_information(self, x, y):
-        token_url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
-        soup = BeautifulSoup(self.req.get(token_url).text, 'lxml')
-        ajax_token = re.search('[0-9a-f]{32}', soup.find('script').string).group()
-        post_data = {
-            'ajaxToken': ajax_token,
-            'cmd': 'mapPositionData',
-            'data[x]': x,
-            'data[y]': y,
-            'data[zoomLevel]': 3
-        }
-        url = 'https://{server}.travian.com/ajax.php?cmd=mapPositionData'.format(server=self.server)
-        try:
-            raw_tiles = json.loads(self.req.post(url, data=post_data).text)['response']['data']['tiles']
-            return raw_tiles
-        except Exception as e:
-            print('Unexpected response.')
-            return None
-
-    def resolve_map_infomation(self, raw_tile):
-        resource_field_array = {
-            '1': '3-3-3-9',
-            '2': '3-4-5-6',
-            '3': '4-4-4-6',
-            '4': '4-5-3-6',
-            '5': '5-3-4-6',
-            '6': '1-1-1-15',
-            '7': '4-4-3-7',
-            '8': '3-4-4-7',
-            '9': '4-3-4-7',
-            '10': '3-5-4-6',
-            '11': '4-3-5-6',
-            '12': '5-4-3-6'
-        }
-        formatted = {
-            'x': int(raw_tile['x']),
-            'y': int(raw_tile['y'])
-        }
-        if 'c' not in raw_tile.keys():
-            formatted['type'] = 'wildness'
-        elif 'k.vt' in raw_tile['c']:
-            formatted['type'] = 'abandoned valley'
-        elif 'k.fo' in raw_tile['c']:
-            formatted['type'] = 'unoccupied oasis'
-        elif 'k.bt' in raw_tile['c']:
-            formatted['type'] = 'occupied oasis'
-        elif 'k.dt' in raw_tile['c']:
-            formatted['type'] = 'village'
-        else:
-            formatted['type'] = 'unidentified'
-        if formatted['type'] == 'abandoned valley':
-            formatted['info'] = resource_field_array[re.search(re.compile('k\.f\d{1,2}'), raw_tile['c']).group()[3:]]
-        elif formatted['type'] == 'unoccupied oasis' or 'occupied oasis':
-            bonus = ', '.join(list(map(lambda x: x.replace(' ', '+')
-                                       .replace(r'{a.r1}', 'lumber')
-                                       .replace(r'{a.r2}', 'clay')
-                                       .replace(r'{a.r3}', 'iron')
-                                       .replace(r'{a.r4}', 'crop'),
-                                       re.findall(re.compile('{a.r\d}\s\d{1,2}%'), raw_tile['t']))))
-            formatted['info'] = bonus
-        return formatted
-
-    def logout(self):
-        url = 'https://{server}.travian.com/logout.php'.format(server=self.server)
-        self.req.get(url)
-
 
 if __name__ == '__main__':
     t = Treq('', '', '')
     t.login()
-    pprint(t.get_current_village_movements())
