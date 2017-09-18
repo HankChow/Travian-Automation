@@ -9,7 +9,7 @@ import requests
 import time
 
 
-class Treq(object):
+class Atom(object):
 
     def __init__(self, username, password, server):
         self.username = username
@@ -44,9 +44,9 @@ class Treq(object):
     # get_current_village_fields
     # get_current_village_movements
     # get_current_village_production
+    # get_current_village_queue
     # get_current_village_resources
     # get_current_village_troops
-    # get_current_village_upgrading
     # get_map_information
     # get_position_upgrade_cost
     # get_villages
@@ -130,6 +130,23 @@ class Treq(object):
         }
         return cvp
 
+    def get_current_village_queue(self):
+        url = 'https://{server}.travian.com/dorf2.php'.format(server=self.server)
+        soup = BeautifulSoup(self.req.get(url).text, 'lxml')
+        anchor = soup.select('h5')
+        if len(anchor) == 0:
+            cvq = []
+            return cvq
+        else:
+            anchor = anchor[0]
+            upgrade_list = list(filter(lambda x: x.name == 'ul', list(anchor.next_siblings)))[0].select('li')
+            cvq = list(map(lambda x: {
+                'type': list(x.select('div.name')[0].strings)[0].strip(),
+                'level': int(list(x.select('div.name')[0].strings)[1].split()[1]),
+                'finish': list(x.select('div.buildDuration')[0].strings)[-1].split()[-1].strip()
+            }, upgrade_list))
+            return cvq
+
     def get_current_village_resources(self):
         url = 'https://{server}.travian.com/dorf1.php'.format(server=self.server)
         soup = BeautifulSoup(self.req.get(url).text, 'lxml')
@@ -159,23 +176,6 @@ class Treq(object):
             cvt[item.select('td.un')[0].string.strip()] = \
                 int(item.select('td.num')[0].string.strip().strip('\u202d\u202c'))
         return cvt
-
-    def get_current_village_upgrading(self):
-        url = 'https://{server}.travian.com/dorf2.php'.format(server=self.server)
-        soup = BeautifulSoup(self.req.get(url).text, 'lxml')
-        anchor = soup.select('h5')
-        if len(anchor) == 0:
-            cvu = []
-            return cvu
-        else:
-            anchor = anchor[0]
-            upgrade_list = list(filter(lambda x: x.name == 'ul', list(anchor.next_siblings)))[0].select('li')
-            cvu = list(map(lambda x: {
-                'type': list(x.select('div.name')[0].strings)[0].strip(),
-                'level': int(list(x.select('div.name')[0].strings)[1].split()[1]),
-                'finish': list(x.select('div.buildDuration')[0].strings)[-1].split()[-1].strip()
-            }, upgrade_list))
-            return cvu
 
     def get_map_information(self, x, y):
 
@@ -283,6 +283,8 @@ class Treq(object):
     # DOERS:
     #
     # do_adventure
+    # do_generate_troops(uncompleted)
+    # do_send_troops(uncompleted)
     # do_upgrade
 
     # 无法使用，原因不明
@@ -297,6 +299,9 @@ class Treq(object):
         self.req.post(url, data=post_data)
         return True
 
+    def do_generate_troops(self, scheme):
+        pass
+
     def do_send_troops(self, scheme):
         pass
 
@@ -309,9 +314,21 @@ class Treq(object):
                     print('Without choosing building type.')
                     return False
                 building_block = soup.select('div#contract_building{new_type}'.format(new_type=new_type))[0]
-                btn_upgrade = building_block.select('div.contractLink button')[0]
+                btn_upgrade = building_block.select('div.contractLink button')
+                if len(btn_upgrade) == 0:
+                    error_message = soup.select('div#contract_building{new_type} div.statusMessage span'
+                                                .format(new_type=new_type))[0]\
+                        .string.strip()
+                    print(error_message)
+                    return False
+                btn_upgrade = btn_upgrade[0]
             else:
-                btn_upgrade = soup.select('div.upgradeButtonsContainer div.section1 button')[0]
+                btn_upgrade = soup.select('div.upgradeButtonsContainer div.section1 button')
+                if len(btn_upgrade) == 0:
+                    error_message = soup.select('div#build span.errorMessage div.statusMessage span')[0].string.strip()
+                    print(error_message)
+                    return False
+                btn_upgrade = btn_upgrade[0]
             if 'green' in btn_upgrade['class']:
                 shortlink = btn_upgrade['onclick'].split('\'')[1]
                 upgrade_link = 'https://{server}.travian.com/{shortlink}'.format(
@@ -321,13 +338,51 @@ class Treq(object):
                 self.req.get(upgrade_link)
                 return True
             else:
-                print('Unable to upgrade.')
+                error_message = soup.select('span.errorMessage div.statusMessage span')
+                if len(error_message) > 0:
+                    print(error_message[0].string.strip())
+                else:
+                    print('Unable to upgrade.')
                 return False
         else:
             print('Inavailable position.')
             return False
 
 
+class Treq(object):
+
+    def __init__(self, username, password, server):
+        self.username = username
+        self.password = password
+        self.server = server
+        self.atom_execution = Atom(self.username, self.password, self.server)
+
+    def upgrade_when_resource_enough(self, position, new_type=None):
+        resources = self.atom_execution.get_current_village_resources()
+        costs = self.atom_execution.get_position_upgrade_cost(position, new_type)
+        for item in ['lumber', 'clay', 'iron', 'crop', 'free']:
+            if resources[item] < costs[item]:
+                print('Lack of {item}. {need} needs, {hold} holds.'.format(
+                    item=item,
+                    need=costs[item],
+                    hold=resources[item])
+                )
+                return False
+        else:
+            self.atom_execution.do_upgrade(position, new_type)
+            print('Position {position} upgrading.'.format(position=position))
+            return True
+
+
+    def upgrade_when_queue_free(self, position, new_type=None):
+        pass
+
+    def upgrade_when_time_hits(self, position, hit_time, new_type=None):
+        pass
+
+
 if __name__ == '__main__':
-    t = Treq('', '', '')
-    t.login()
+    a = Atom('', '', '')
+    pprint(a.get_current_village_production())
+    # t = Treq('hank47', 'zc_7r4v14n', 'ts7')
+    # t.upgrade_when_resource_enough(12)
